@@ -7,3 +7,7 @@ type Role struct {
 	Category    string
 	DiscordRole *discordgo.Role
 }
+
+var (
+	RolesToPopulate = []Role{}
+)
