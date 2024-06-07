@@ -46,15 +46,6 @@ func (d *Discord) AddCommands(s *discordgo.Session, event *discordgo.Ready) {
 	}
 }
 
-// CheckUserInGuild checks if the user is in the specified server.
-func (d *Discord) CheckUserInGuild(guild_id string, user string) error {
-	_, err := d.Session.GuildMember(guild_id, user)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 var KickCommand = &discordgo.ApplicationCommand{
 	Name:                     "kick",
 	DefaultMemberPermissions: &adminPermission,
@@ -315,4 +306,13 @@ func (d *Discord) InteractionCreate(s *discordgo.Session, i *discordgo.Interacti
 	case "unexile":
 		d.Unexile(s, i)
 	}
+}
+
+// CheckUserInGuild checks if the user is in the specified server.
+func (d *Discord) CheckUserInGuild(guild_id string, user string) error {
+	_, err := d.Session.GuildMember(guild_id, user)
+	if err != nil {
+		return err
+	}
+	return nil
 }
