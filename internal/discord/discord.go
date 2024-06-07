@@ -2,6 +2,7 @@ package discord
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -9,6 +10,7 @@ import (
 type Discord struct {
 	Token   string
 	Session *discordgo.Session
+	Ready   sync.WaitGroup
 }
 
 // Start sets up the token and intents of the bot before it logs in
