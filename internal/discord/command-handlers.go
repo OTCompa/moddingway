@@ -16,6 +16,7 @@ var (
 func (d *Discord) DiscordReady(s *discordgo.Session, event *discordgo.Ready) {
 	defer d.Ready.Done()
 	d.AddCommands(s, event)
+	d.EnsureRoles(s, event)
 }
 
 // AddCommands registers the slash commands with Discord
@@ -49,6 +50,34 @@ func (d *Discord) AddCommands(s *discordgo.Session, event *discordgo.Ready) {
 		}
 		if err != nil {
 			fmt.Printf("Could not add some commands: %v \n", err)
+		}
+	}
+}
+
+func (d *Discord) EnsureRoles(s *discordgo.Session, event *discordgo.Ready) {
+	fmt.Printf("Ensuring roles are populated...\n")
+
+	for _, discordGuild := range event.Guilds {
+		guildID := discordGuild.ID
+		existingRoles := discordGuild.Roles
+
+		for _, role := range RolesToPopulate {
+			for _, guildRole := range existingRoles {
+				if guildRole.Name == role.Name {
+					fmt.Printf("Role %v already exists\n", role.Name)
+					role.DiscordRole = guildRole
+				}
+			}
+			if role.DiscordRole == nil {
+				fmt.Printf("Adding role %v...\n", role.Name)
+				discordRole, err := d.Session.GuildRoleCreate(guildID, &discordgo.RoleParams{
+					Name: role.Name,
+				})
+				if err != nil {
+					fmt.Printf("Error creating role %v: %v\n", role.Name, err)
+				}
+				role.DiscordRole = discordRole
+			}
 		}
 	}
 }
