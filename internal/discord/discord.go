@@ -25,6 +25,12 @@ func (d *Discord) Init(token string) {
 	d.ModLoggingChannelID = DefaultModLoggingChannel
 }
 
+func (d *Discord) InitDebug(token string, guildID string, modLoggingChannelID string) {
+	d.Token = token
+	d.GuildID = guildID
+	d.ModLoggingChannelID = modLoggingChannelID
+}
+
 // Start sets up the token and intents of the bot before it logs in
 // Intents are what events the bot is subscribed to, so it will
 // be notified of any events within the selected categories
