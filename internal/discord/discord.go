@@ -1,11 +1,13 @@
 package discord
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Discord struct {
@@ -14,21 +16,24 @@ type Discord struct {
 	Ready               sync.WaitGroup
 	GuildID             string
 	ModLoggingChannelID string
-
+	Conn                *pgxpool.Pool
 	// The structure of the following map is Roles[guild_id][role_name]
 	Roles map[string]map[string]*discordgo.Role
 }
 
-func (d *Discord) Init(token string) {
+func (d *Discord) InitWithDefaults(token string) {
 	d.Token = token
 	d.GuildID = DefaultGuildID
 	d.ModLoggingChannelID = DefaultModLoggingChannel
 }
 
-func (d *Discord) InitDebug(token string, guildID string, modLoggingChannelID string) {
-	d.Token = token
-	d.GuildID = guildID
-	d.ModLoggingChannelID = modLoggingChannelID
+func (d *Discord) ConnectDatabase(dbUrl string) {
+	conn, err := pgxpool.New(context.Background(), dbUrl)
+	if err != nil {
+		tempstr := fmt.Sprintf("Unable to connect to database: %v\n", err)
+		panic(tempstr)
+	}
+	d.Conn = conn
 }
 
 // Start sets up the token and intents of the bot before it logs in

@@ -8,35 +8,49 @@ import (
 	"syscall"
 
 	"github.com/naurffxiv/moddingway/internal/discord"
+	"github.com/naurffxiv/moddingway/internal/util"
 )
 
 func main() {
-	discordToken, ok := os.LookupEnv("DISCORD_TOKEN")
-	if !ok {
-		panic("You must supply a DISCORD_TOKEN to start!")
+	eg := &util.EnvGetter{
+		Ok: true,
 	}
+
+	host := eg.GetEnv("POSTGRES_HOST")
+	port := eg.GetEnv("POSTGRES_PORT")
+	user := eg.GetEnv("POSTGRES_USER")
+	password := eg.GetEnv("POSTGRES_PASSWORD")
+	dbname := eg.GetEnv("POSTGRES_DB")
+
+	discordToken := eg.GetEnv("DISCORD_TOKEN")
 	discordToken = strings.TrimSpace(discordToken)
 
-	d := &discord.Discord{}
-
-	debug, _ := os.LookupEnv("DEBUG")
+	debug := eg.GetEnv("DEBUG")
 	debug = strings.ToLower(debug)
 
+	var d = &discord.Discord{}
+
 	if debug == "true" {
-		guildID, ok := os.LookupEnv("GUILD_ID")
-		if !ok {
-			panic("You must supply a GUILD_ID to start!")
-		}
-
-		modLoggingChannelID, ok := os.LookupEnv("MOD_LOGGING_CHANNEL_ID")
-		if !ok {
-			panic("You must supply a MOD_LOGGING_CHANNEL_ID to start!")
-		}
-
-		d.InitDebug(discordToken, guildID, modLoggingChannelID)
+		guildID := eg.GetEnv("GUILD_ID")
+		modLoggingChannelID := eg.GetEnv("MOD_LOGGING_CHANNEL_ID")
+		d.Token = discordToken
+		d.GuildID = guildID
+		d.ModLoggingChannelID = modLoggingChannelID
 	} else {
-		d.Init(discordToken)
+		// InitWithDefaults only sets default values and does not
+		// do anything else, so error checking can come after
+		d.InitWithDefaults(discordToken)
 	}
+
+	if !eg.Ok {
+		tempstr := fmt.Sprintf("You must supply a %s to start!", eg.EnvName)
+		panic(tempstr)
+	}
+
+	fmt.Printf("Connecting to db...\n")
+	dbUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", user, password, host, port, dbname)
+	d.ConnectDatabase(dbUrl)
+	defer d.Conn.Close()
 
 	fmt.Printf("Starting Discord...\n")
 	err := d.Start()
@@ -60,10 +74,8 @@ func start(d *discord.Discord) {
 	d.Ready.Wait()
 	d.Session.AddHandler(d.InteractionCreate)
 	fmt.Println("Moddingway is ready. Press CTRL+C to exit.")
+
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
-
-	// Cleanly close down the Discord session.
-	d.Session.Close()
 }

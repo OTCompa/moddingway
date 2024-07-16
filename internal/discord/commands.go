@@ -1,10 +1,13 @@
 package discord
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/naurffxiv/moddingway/internal/enum"
 )
 
 // Kick attempts to kick the user specified user from the server the command was invoked in.
@@ -142,7 +145,6 @@ func (d *Discord) Exile(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			endTime.Unix(),
 		)
 		RespondAndAppendLog(state, tempstr)
-
 		// DM user regarding the exile, doesn't matter if DM fails
 		tempstr = fmt.Sprintf("You are being exiled from `%v` until <t:%v> for the following reason:\n> %v",
 			GuildName,
@@ -150,31 +152,65 @@ func (d *Discord) Exile(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			optionMap["reason"].StringValue(),
 		)
 		d.SendDMToUser(state, userToExile.ID, tempstr)
-		d.EditLogMsg(logMsg)
 
-		time.Sleep(duration)
-
-		// Reuse the original embed format but clear existing info
-		ClearEmbedDescription(logMsg)
-		AppendLogMsgDescription(logMsg, fmt.Sprintf("Exile duration for <@%v> is over", userToExile.ID))
-		UpdateLogMsgTimestamp(logMsg)
-		if logMsg != nil {
-			d.SendEmbed(d.ModLoggingChannelID, logMsg.Embeds[0])
-		}
-
-		// Unexile user
-		reason := "Exile duration has finished."
-		err = d.UnexileUser(state, userToExile.ID, reason)
-		if err != nil {
-			return
-		}
-		// DM user regarding the unexile, doesn't matter if DM fails
-		tempstr = fmt.Sprintf("You have been unexiled from `%v` for the following reason:\n> %v",
-			GuildName,
-			reason,
+		query := `WITH ret AS (
+			INSERT INTO users (discorduserid, discordguildid, ismod) VALUES ($1, $2, false) ON CONFLICT (discorduserid, discordguildid) DO NOTHING RETURNING userID
 		)
-		d.SendDMToUser(state, userToExile.ID, tempstr)
-		d.EditLogMsg(state.logMsg)
+		select userID FROM ret
+		UNION ALL
+		select userID from users where discorduserid = $1 and discordguildid = $2
+		limit 1`
+
+		var dbUserId int
+		err = d.Conn.QueryRow(context.Background(), query, userToExile.ID, i.GuildID).Scan(&dbUserId)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("dbUserID: %v\n", dbUserId)
+
+		query2 := `INSERT INTO exiles (userID, reason, exileStatus, startTimestamp, endTimestamp) VALUES ($1, $2, $3, $4, $5) RETURNING exileID`
+		var exileID int
+		err = d.Conn.QueryRow(
+			context.Background(),
+			query2,
+			dbUserId,
+			optionMap["reason"].StringValue(),
+			enum.TimedExile,
+			startTime.UTC().Format(time.RFC3339),
+			endTime.UTC().Format(time.RFC3339),
+		).Scan(&exileID)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
+			os.Exit(1)
+		}
+		logMsg.Embeds[0].Footer = &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Exile ID: %v", exileID)}
+		d.EditLogMsg(logMsg)
+		/*
+			time.Sleep(duration)
+
+			// Reuse the original embed format but clear existing info
+			ClearEmbedDescription(logMsg)
+			AppendLogMsgDescription(logMsg, fmt.Sprintf("Exile duration for <@%v> is over", userToExile.ID))
+			UpdateLogMsgTimestamp(logMsg)
+			if logMsg != nil {
+				d.SendEmbed(d.ModLoggingChannelID, logMsg.Embeds[0])
+			}
+
+			// Unexile user
+			reason := "Exile duration has finished."
+			err = d.UnexileUser(state, userToExile.ID, reason)
+			if err != nil {
+				return
+			}
+			// DM user regarding the unexile, doesn't matter if DM fails
+			tempstr = fmt.Sprintf("You have been unexiled from `%v` for the following reason:\n> %v",
+				GuildName,
+				reason,
+			)
+			d.SendDMToUser(state, userToExile.ID, tempstr)
+			d.EditLogMsg(state.logMsg)
+		*/
 	} else {
 		tempstr := fmt.Sprintf(
 			"User <@%v> has been exiled indefinitely",
