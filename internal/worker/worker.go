@@ -141,11 +141,13 @@ func testQuery(d *discord.Discord) {
 			roleIDToRemove := d.Roles[currRow.discordGuildID]["Exiled"].ID
 			roleIDToAdd := d.Roles[currRow.discordGuildID]["Verified"].ID
 			// Attempt to remove role first
+			// Check if user is in guild
 			err := d.Session.GuildMemberRoleRemove(currRow.discordGuildID, currRow.discordUserID, roleIDToRemove)
 			if err != nil {
 				// Abort entire process if role removal fails
 				tempstr := fmt.Sprintf("Could not remove the role <@&%v> from user <@%v>", roleIDToAdd, currRow.discordUserID)
 				fmt.Printf("%v: %v\n", tempstr, err)
+				// Change the exiledStatus to unknown
 				continue
 			} else {
 				// Otherwise add role
@@ -153,6 +155,7 @@ func testQuery(d *discord.Discord) {
 				if err != nil {
 					tempstr := fmt.Sprintf("Could not give user <@%v> role <@&%v>", currRow.discordUserID, roleIDToAdd)
 					fmt.Printf("%v: %v\n", tempstr, err)
+					// Change the exiledStatus to unknown
 					continue
 				}
 			}
